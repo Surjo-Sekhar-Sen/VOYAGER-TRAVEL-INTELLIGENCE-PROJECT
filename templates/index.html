@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <title>Voyager Intelligence Gateway</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-white min-h-screen">
+
+    <div class="h-screen w-full relative">
+        <iframe id="map-frame" src="/map" class="w-full h-full border-none"></iframe>
+        <div class="absolute bottom-8 left-0 right-0 flex justify-center gap-4 px-4">
+            <button onclick="showPanel('panel-self')" class="bg-blue-600 px-8 py-4 rounded-2xl font-black shadow-2xl hover:scale-105 transition">TRAVEL</button>
+            <button onclick="showPanel('panel-transit')" class="bg-emerald-600 px-8 py-4 rounded-2xl font-black shadow-2xl hover:scale-105 transition">A-TO-B TRANSIT</button>
+            <button onclick="showPanel('panel-trip')" class="bg-purple-600 px-8 py-4 rounded-2xl font-black shadow-2xl hover:scale-105 transition">TRIP CANVAS</button>
+        </div>
+    </div>
+
+    <div class="max-w-4xl mx-auto py-12 px-6">
+        
+        <section id="panel-self" class="hidden space-y-8">
+            <h2 class="text-3xl font-black text-blue-400 uppercase tracking-widest">Travel Intelligence</h2>
+            
+            <div class="bg-slate-900 p-8 rounded-3xl border border-slate-700">
+                <h3 class="text-lg font-bold mb-4">📍 Proximity Search</h3>
+                <input type="text" id="nearby-search" placeholder="Search nearby utilities..." class="w-full bg-slate-950 p-4 rounded-xl border border-slate-700 text-white mb-4">
+                <button onclick="triggerNearbySearch()" class="w-full bg-blue-800 p-4 rounded-xl font-bold hover:bg-blue-700 transition">SCAN NEARBY</button>
+            </div>
+
+            <div class="bg-slate-900 p-8 rounded-3xl border border-slate-700">
+                <h3 class="text-lg font-bold mb-4">🚀 Personal Commute (Car/Walk)</h3>
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <input id="p-src" type="text" placeholder="Source" class="bg-slate-950 p-4 rounded-xl border border-slate-700 text-white">
+                    <input id="p-dst" type="text" placeholder="Destination" class="bg-slate-950 p-4 rounded-xl border border-slate-700 text-white">
+                </div>
+                <div class="flex gap-4">
+                    <button onclick="triggerPersonalTransit('Car')" class="bg-blue-600 p-4 rounded-xl flex-1 font-bold hover:bg-blue-500 transition">🚗 Vehicle</button>
+                    <button onclick="triggerPersonalTransit('Walk')" class="bg-blue-600 p-4 rounded-xl flex-1 font-bold hover:bg-blue-500 transition">🚶 Walking</button>
+                </div>
+            </div>
+            <div id="self-results" class="mt-6"></div>
+        </section>
+
+        <section id="panel-transit" class="hidden space-y-6">
+            <h2 class="text-3xl font-black text-emerald-400 uppercase tracking-widest">A-to-B Transit</h2>
+            <div class="bg-slate-900 p-8 rounded-3xl border border-slate-700 space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <input id="src" type="text" placeholder="Source" class="bg-slate-950 p-4 rounded-xl border border-slate-700 text-white">
+                    <input id="dst" type="text" placeholder="Destination" class="bg-slate-950 p-4 rounded-xl border border-slate-700 text-white">
+                    <input id="group" type="number" placeholder="Group Size" class="bg-slate-950 p-4 rounded-xl border border-slate-700 text-white">
+                    <input id="budget" type="number" placeholder="Budget (INR)" class="bg-slate-950 p-4 rounded-xl border border-slate-700 text-white">
+                </div>
+                <button onclick="triggerTransit()" class="w-full bg-emerald-600 py-4 rounded-xl font-black hover:bg-emerald-500 transition">CALCULATE OPTIMAL ROUTE</button>
+                <div id="transit-results" class="mt-6"></div>
+            </div>
+        </section>
+
+        <section id="panel-trip" class="hidden space-y-6">
+            <h2 class="text-3xl font-black text-purple-400 uppercase tracking-widest">Trip Itinerary Canvas</h2>
+            <div class="bg-slate-900 p-8 rounded-3xl border border-slate-700">
+                <textarea id="trip-nodes" class="w-full bg-slate-950 p-4 rounded-xl mb-4 text-white" rows="3" placeholder="Enter hotspots (comma separated)..."></textarea>
+                <button onclick="triggerTrip()" class="w-full bg-purple-600 py-4 rounded-xl font-black hover:bg-purple-500 transition">GENERATE CANVAS</button>
+                <div id="trip-results" class="mt-6"></div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        function showPanel(panelId) {
+            document.querySelectorAll('section[id^="panel-"]').forEach(p => p.classList.add('hidden'));
+            const target = document.getElementById(panelId);
+            target.classList.remove('hidden');
+            target.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        async function triggerNearbySearch() {
+            const container = document.getElementById('self-results');
+            container.innerHTML = `<p class="text-blue-400 animate-pulse">🛰️ Scanning surroundings...</p>`;
+            const res = await fetch('/api/verify/spot?spot_name=Current+Location&reviews=all');
+            const data = await res.json();
+            container.innerHTML = `<div class="bg-slate-800 p-6 rounded-2xl border border-blue-500"><h3 class="text-lg font-bold">Nearby Assets</h3><ul class="mt-2 space-y-2">` + 
+                data.utilities.map(u => `<li class="flex justify-between"><span>${u.utility_name}</span><span class="text-emerald-400">${u.status}</span></li>`).join('') + `</ul></div>`;
+        }
+
+        async function triggerPersonalTransit(mode) {
+            document.getElementById('self-results').innerHTML = `<p class="text-blue-400">🗺️ Calculating ${mode} path...</p>`;
+            // Routing logic integration
+        }
+
+        async function triggerTransit() {
+            const payload = { user_id: 150, source: document.getElementById('src').value, destination: document.getElementById('dst').value, group_size: parseInt(document.getElementById('group').value) || 1, budget: parseFloat(document.getElementById('budget').value) || 0, time_of_day: "day", is_raining: 0, preference: "balanced" };
+            const res = await fetch('/api/v1/optimize-route', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+            const data = await res.json();
+            document.getElementById('transit-results').innerHTML = `<div class="p-6 bg-slate-800 rounded-2xl border border-emerald-500"><h3 class="text-xl font-black">${data.metrics_resolution.top_choice}</h3><p class="text-sm">${data.agentic_ai_layer.proactive_alert}</p></div>`;
+        }
+
+        async function triggerTrip() {
+            const nodes = document.getElementById('trip-nodes').value.split(',').map(n => n.trim());
+            const payload = { user_id: 150, selected_hotspots: nodes, budget: 2000, time_of_day: "day", is_raining: 0, group_size: 1 };
+            const res = await fetch('/api/v1/build-dynamic-canvas', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+            const data = await res.json();
+            let html = '<div class="space-y-4">';
+            data.payload.itinerary_timeline_package.itinerary_timeline_nodes.forEach(node => {
+                html += `<div class="p-4 bg-slate-800 rounded-xl border-l-4 border-purple-500"><h4 class="font-bold">${node.node}</h4><p class="text-xs text-slate-400">${node.agentic_ai_layer.live_assistant_brief}</p></div>`;
+            });
+            document.getElementById('trip-results').innerHTML = html + '</div>';
+        }
+    </script>
+</body>
+</html>

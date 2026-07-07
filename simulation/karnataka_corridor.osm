@@ -1,27 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
     <osm version="0.6" generator="Voyager Kernel FailSafe Engine">
-        <node id="1" lat="12.2900" lon="76.6300"/>
-        <node id="2" lat="12.2950" lon="76.6350"/>
-        <node id="3" lat="12.3000" lon="76.6400"/>
-        <node id="4" lat="12.3050" lon="76.6450"/>
-        <node id="5" lat="12.3100" lon="76.6500"/>
+        <node id="1" lat="13.1610" lon="77.5342"/>
+        <node id="2" lat="13.0108" lon="77.5552"/>
+        <node id="3" lat="12.9716" lon="77.5946"/>
         
         <way id="101">
             <nd ref="1"/> <nd ref="2"/> <nd ref="3"/>
             <tag k="highway" v="trunk"/>
-            <tag k="name" v="Regional Highway Corridor Connect"/>
-        </way>
-        
-        <way id="102">
-            <nd ref="2"/> <nd ref="4"/>
-            <tag k="highway" v="residential"/>
-            <tag k="name" v="Urban Shadow Hub Access Street"/>
-        </way>
-        
-        <way id="103">
-            <nd ref="3"/> <nd ref="5"/>
-            <tag k="highway" v="living_street"/>
-            <tag k="name" v="Local Heritage Destination Connector Lane"/>
+            <tag k="name" v="Main Connecting Transit Corridor Channel"/>
         </way>
     </osm>
     
