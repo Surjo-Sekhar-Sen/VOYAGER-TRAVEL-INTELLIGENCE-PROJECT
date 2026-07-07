@@ -199,10 +199,44 @@ def calculate_comprehensive_transit_profile(source_name: str, dest_name: str, di
     bike_total = predict_on_demand_private_fare(distance_km, is_peak_hour, is_raining, 'online_bike', group_size) if group_size == 1 else 0.0
 
     return {
-        "namma_metro": {"fare": total_metro_fare, "comfort": 4.5, "type": "Rapid Transit Rail Network", "notes": "BMRCL token protocols active."},
-        "ordinary_bus": {"fare": ordinary_metrics["fare"] * group_size, "comfort": 2.0, "type": "City Ordinary Non-AC Grid", "notes": ordinary_metrics["notes"]},
-        "ac_vajra_bus": {"fare": ac_metrics["fare"] * group_size, "comfort": 4.0, "type": "City AC Vajra Carrier", "notes": ac_metrics["notes"]},
-        "online_cab": {"fare": round(cab_fare_calc := (cab_total * group_size if gender.lower() == 'female' else cab_total), 2), "comfort": 4.8, "type": "Premium On-Demand Cab", "notes": "Dynamic predictive pricing accounting for climate/peak surge multipliers."},
-        "online_auto": {"fare": round(auto_total, 2), "comfort": 2.5, "type": "App-Based Auto Rickshaw", "notes": "Standard booking processing overhead applied."},
-        "online_bike": {"fare": round(bike_total, 2), "comfort": 1.5, "type": "App-Based Micro-Mobility Moto", "notes": "Request granted for single solo commuter parameters only." if group_size == 1 else "Bike taxi restricted for multi-person group requests."}
+        "namma_metro": {
+            "fare": 30.0 * group_size, 
+            "time": distance_km * 2.0, 
+            "traffic_delay": 0.0, # Metro has no traffic delay
+            "comfort": 4.5, 
+            "type": "Rapid Transit", 
+            "notes": "BMRCL protocols active."
+        },
+        "ordinary_bus": {
+            "fare": 20.0 * group_size, 
+            "time": distance_km * 4.0, 
+            "traffic_delay": 25.0, 
+            "comfort": 2.0, 
+            "type": "Ordinary Bus", 
+            "notes": "High crowd."
+        },
+        "ac_vajra_bus": {
+            "fare": 40.0 * group_size, 
+            "time": distance_km * 3.5, 
+            "traffic_delay": 22.0, 
+            "comfort": 4.0, 
+            "type": "AC Vajra", 
+            "notes": "Weather shielded."
+        },
+        "online_cab": {
+            "fare": round(cab_total, 2), 
+            "time": distance_km * 1.8, 
+            "traffic_delay": 18.0, 
+            "comfort": 4.8, 
+            "type": "Premium Cab", 
+            "notes": "Dynamic predictive pricing."
+        },
+        "online_auto": {
+            "fare": round(auto_total, 2), 
+            "time": distance_km * 2.5, 
+            "traffic_delay": 15.0, 
+            "comfort": 2.5, 
+            "type": "Auto Rickshaw", 
+            "notes": "Quick micro-mobility."
+        }
     }
