@@ -1,34 +1,35 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
 import numpy as np
 import os
 import pandas as pd
+
+# Import our verified active subsystems
 from src.decision import run_topsis_optimizer
-
-# Dynamic importing packages safely
-try:
-    from src.pricing import predict_transit_fare
-except ImportError:
-    # Fail-safe pricing logic fallback if standalone testing is run
-    def predict_transit_fare(dist, night, rain, mode, group):
-        base = {"public_bus": 15, "shared_auto": 40, "online_cab": 180}
-        return float((base.get(mode, 50) * dist) / (group if mode != 'online_cab' else 1))
-
-try:
-    from src.itinerary import generate_interactive_trip_canvas
-except ImportError:
-    def generate_interactive_trip_canvas(**kwargs):
-        return [{"node": "Simulation Fallback Node Core Active"}]
+from src.itinerary import generate_interactive_trip_canvas
+from src.mapping import generate_live_transit_map
+from src.pricing import calculate_comprehensive_transit_profile
 
 app = FastAPI(
-    title="Voyager Voyager Intelligence Dual-Core Gateway", 
+    title="VOYAGER: Unified Travel Intelligence Dual-Core Gateway", 
     description="Production-grade AI Travel Engine integrating 8-Criteria MCDM, SUMO Multi-Agent Traces, and Random Forest Pricing Pipelines.",
-    version="6.0.0"
+    version="6.5.0"
+)
+
+# Enable CORS for frontend/API integration safety
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # =====================================================================
-# DATA CONTRACTS (PYDANTIC SCHEMAS)
+# DATA CONTRACTS (UPDATED PYDANTIC SCHEMAS)
 # =====================================================================
 class StandaloneRouteRequest(BaseModel):
     user_id: int
@@ -38,94 +39,117 @@ class StandaloneRouteRequest(BaseModel):
     time_of_day: str      # "day" or "night"
     is_raining: int       # 1 for Yes, 0 for No
     group_size: int       # Number of co-travellers
+    passenger_type: str = "adult" # adult, child, senior
+    gender: str = "male"          # male, female, other
+    has_bus_pass: bool = False
 
 class MacroTripCanvasRequest(BaseModel):
     user_id: int
-    selected_hotspots: List[str]  # E.g., ["Hotel Hub", "Mysore Palace", "Mysore Zoo"]
+    selected_hotspots: List[str]  # E.g., ["Hotel Hub Core", "Mysore Palace Sector", "Mysore Zoo Terminal"]
     budget: float
     time_of_day: str              # "day" or "night"
     is_raining: int               # 1 for Yes, 0 for No
     group_size: int               # Total passengers in group
+    passenger_type: str = "adult"
+    gender: str = "male"
+    has_bus_pass: bool = False
 
-# =====================================================================
-# LIVE SUMO INTEGRATION HELPER LAYER
-# =====================================================================
 def fetch_sumo_traffic_delay_multiplier():
-    """
-    Reads active multi-agent simulation logs from data layer and extracts 
-    real-time speed variations to scale the TOPSIS Traffic_Delay metric dynamically.
-    """
     log_path = "data_cache/traffic_logs.csv"
     if not os.path.exists(log_path):
-        print("⚠️ SUMO simulator logs not detected. Using optimal base traffic coefficients.")
         return 1.0
     try:
         df = pd.read_csv(log_path)
         if len(df) > 0:
-            # Calculating mean congestion index from dynamic agents loop (0 to 1)
             mean_overhead = df["congestion_overhead"].mean()
-            # Multiplier ranges from 1.0 (free flow) to 2.5 (heavy bottleneck delay grid lock)
             return float(1.0 + (mean_overhead * 1.5))
     except Exception:
         pass
     return 1.0
 
 # =====================================================================
-# SYSTEM ROOT
+# GATEWAY ROOT ROUTE
 # =====================================================================
 @app.get("/")
 def system_health_check():
     return {
         "status": "Active",
-        "framework": "Voyager Enterprise Kernel v6.0",
+        "framework": "Voyager Enterprise Kernel v6.5-Stable",
         "PPT_Compliance": "8-Criteria Optimization Model Fully Deployed with SUMO Feed",
         "gateways": {
-            "Feature_1": "/api/v1/optimize-route [Direct Point-to-Point Micro-Router]",
-            "Feature_2": "/api/v1/build-dynamic-canvas [Macro Multi-Day Itinerary Planner Canvas]"
+            "Standalone_Router": "/api/v1/optimize-route",
+            "Macro_Planner_Canvas": "/api/v1/build-dynamic-canvas",
+            "Interactive_Map_Frame": "/map"
         }
     }
 
 # =====================================================================
-# FEATURE 1: Standalone Point-to-Point Micro-Router
+# LIVE IFRAME MAP ENDPOINT
+# =====================================================================
+@app.get("/map", response_class=HTMLResponse)
+async def get_interactive_transit_map(request: Request):
+    """
+    Triggers dynamic recalculation of transit tracks and streams the compiled map view.
+    """
+    map_html_path = "templates/transit_map.html"
+    generate_live_transit_map(output_path=map_html_path)
+    
+    if not os.path.exists(map_html_path):
+        return HTMLResponse(content="<h3>Error: Map compilation failed. Check cache.</h3>", status_code=500)
+        
+    with open(map_html_path, "r", encoding="utf-8") as f:
+        html_content = f.read()
+    return HTMLResponse(content=html_content, status_code=200)
+
+# =====================================================================
+# FEATURE 1: Standalone Point-to-Point Micro-Router (2 Macro Modes)
 # =====================================================================
 @app.post("/api/v1/optimize-route")
 def optimize_standalone_route(request: StandaloneRouteRequest):
     """
-    Feature 1 (Micro-Router): Evaluates an explicit route from A to B across 
-    3 distinct transport vectors using the 8 PPT criteria matrix synced with SUMO delays.
+    Feature 1 (Micro-Router): Evaluates routes across 2 streamlined targets 
+    (PUBLIC_TRANSIT and ONLINE_TRANSPORT) utilizing pricing rules engines.
     """
-    distance_simulated = 6.5  
-    modes = ['public_bus', 'shared_auto', 'online_cab']
-    
-    # 🛰️ Dynamic live traffic delay multiplier fetch from SUMO agents
+    distance_simulated = 5.4  
     sumo_multiplier = fetch_sumo_traffic_delay_multiplier()
-    print(f"🌲 Dynamic SUMO Multi-Agent Congestion Multiplier Active: {sumo_multiplier:.4f}x")
+    current_sim_peak = 1 if request.time_of_day == "night" else 0
+    
+    # Trigger dynamic profile calculations from pricing.py
+    profile_matrix = calculate_comprehensive_transit_profile(
+        source_name=request.source,
+        dest_name=request.destination,
+        distance_km=distance_simulated,
+        is_peak_hour=current_sim_peak,
+        is_raining=request.is_raining,
+        passenger_type=request.passenger_type,
+        gender=request.gender,
+        has_bus_pass=request.has_bus_pass,
+        group_size=request.group_size
+    )
     
     alternatives_pool = []
     path_names = []
     
-    for mode in modes:
-        cost = predict_transit_fare(distance_simulated, 1 if request.time_of_day == "night" else 0, request.is_raining, mode, request.group_size)
-        
-        if mode == 'public_bus':
-            time_taken = 35.0; walking_dist = 0.7; safety = 4.5; availability = 5.0; comfort = 2.0; traffic_delay = 20.0
-        elif mode == 'shared_auto':
-            time_taken = 22.0; walking_dist = 0.3; safety = 3.5; availability = 4.0; comfort = 3.0; traffic_delay = 12.0
-        else: 
-            time_taken = 15.0; walking_dist = 0.05; safety = 4.9; availability = 4.5; comfort = 5.0; traffic_delay = 15.0
-            
-        if request.time_of_day == "night" and mode != 'online_cab':
-            safety -= 1.5
-            availability -= 2.0
-            
-        # ⚡ LIVE INTEGRATION: Injecting dynamic traffic scaling into index 2 (Traffic_Delay)
-        traffic_delay = traffic_delay * sumo_multiplier
-        
-        weather_risk = 4.0 if request.is_raining == 1 else 1.0
-        alternatives_pool.append([cost, time_taken, traffic_delay, walking_dist, safety, weather_risk, availability, comfort])
-        path_names.append(f"Deploy {mode.upper()} Route")
+    # Standardize loop tracking options into 2 macro clusters based on user request filter
+    # Combined profiles mappings
+    bus_fare = profile_matrix["ordinary_bus"]["fare"]
+    cab_fare = profile_matrix["online_cab"]["fare"]
+    
+    # Format vectors for [Cost, Time, Traffic_Delay, Walking_Dist, Safety, Weather_Risk, Availability, Group_Comfort]
+    # 1. PUBLIC_TRANSIT Macro Evaluation vector
+    alternatives_pool.append([bus_fare, distance_simulated * 3.5, 20.0 * sumo_multiplier, 0.6, 4.4, 3.0 if request.is_raining else 1.0, 4.8, 3.5])
+    path_names.append("PUBLIC_TRANSIT")
+    
+    # 2. ONLINE_TRANSPORT Macro Evaluation vector
+    alternatives_pool.append([cab_fare, distance_simulated * 1.8, 15.0 * sumo_multiplier, 0.05, 4.8, 1.0, 4.5, 5.0])
+    path_names.append("ONLINE_TRANSPORT")
 
-    # 8-Criteria Weights configuration based on user preference profile vectors
+    # Modifiers if environmental checks trigger night hazards
+    if request.time_of_day == "night":
+        alternatives_pool[0][4] -= 1.0  # Reduce transit safety slightly at night
+        alternatives_pool[0][6] -= 1.5  # Drop transit availability 
+
+    # Profile vector tuning rules matrices
     if request.preference == "safety" or request.time_of_day == "night":
         weights = np.array([0.05, 0.10, 0.05, 0.05, 0.45, 0.10, 0.10, 0.10]) 
     elif request.preference == "economy":
@@ -137,32 +161,35 @@ def optimize_standalone_route(request: StandaloneRouteRequest):
     ranked_results = run_topsis_optimizer(np.array(alternatives_pool), weights, benefit_criteria, path_names)
 
     return {
-        "feature_mode": "Point-to-Point Standalone Core Router",
+        "feature_mode": "Point-to-Point Micro-Router Core",
         "source": request.source,
         "destination": request.destination,
         "sumo_traffic_layer": "CONNECTED",
         "metrics_resolution": {
             "top_choice": ranked_results[0]['route_name'],
-            "score": f"{ranked_results[0]['closeness_score']:.4f}",
+            # Synced with decision.py variable names key to bypass KeyError
+            "score": f"{ranked_results[0]['topsis_score']:.4f}",
             "full_evaluation_matrix": ranked_results
         }
     }
 
 # =====================================================================
-# FEATURE 2: Macro Multi-Day Itinerary Canvas
+# FEATURE 2: Macro Dynamic Trip Timeline Grid Canvas
 # =====================================================================
 @app.post("/api/v1/build-dynamic-canvas")
 def build_trip_canvas(request: MacroTripCanvasRequest):
     """
-    Feature 2 (Itinerary Planner): Compiles user hotspots, hooks crowdsourced data insights, 
-    and triggers Feature 1 Micro-Routing dynamically behind every destination node.
+    Feature 2 (Itinerary Planner Planner): Dynamic multi-node routing synchronization.
     """
     full_schedule = generate_interactive_trip_canvas(
         user_selected_hotspots=request.selected_hotspots,
         budget_limit=request.budget,
         time_of_day=request.time_of_day.lower(),
         is_raining=request.is_raining,
-        group_size=request.group_size
+        group_size=request.group_size,
+        passenger_type=request.passenger_type,
+        gender=request.gender,
+        has_bus_pass=request.has_bus_pass
     )
     return {
         "user_id": request.user_id,

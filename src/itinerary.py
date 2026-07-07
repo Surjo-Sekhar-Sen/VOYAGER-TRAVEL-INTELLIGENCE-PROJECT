@@ -5,16 +5,11 @@ import pandas as pd
 from google import genai
 from google.genai import types
 from src.decision import run_topsis_optimizer
+# Direct dynamic reference to your newly finalized matrix rules
+from src.pricing import calculate_comprehensive_transit_profile
 
 api_key = os.environ.get("GEMINI_API_KEY", "MOCK_KEY_FALLBACK_IF_NOT_SET")
 client = genai.Client(api_key=api_key)
-
-try:
-    from src.pricing import predict_transit_fare
-except ImportError:
-    def predict_transit_fare(dist, night, rain, mode, group):
-        base = {"public_bus": 15, "shared_auto": 40, "online_cab": 180}
-        return float((base.get(mode, 50) * dist) / (group if mode != 'online_cab' else 1))
 
 def get_location_coordinates(landmark: str):
     geo_database = {
@@ -96,11 +91,10 @@ def fetch_sumo_traffic_delay_multiplier():
     return 1.0
 
 # =====================================================================
-# MACRO TRIP TIMELINE CANVAS ENGINE (MULTI-RECOMMENDATIONS UPDATED)
+# UPGRADED TRIP TIMELINE CANVAS ENGINE (INTEGRATED WITH MASTER CHANNELS)
 # =====================================================================
-def generate_interactive_trip_canvas(user_selected_hotspots: list, budget_limit: float, time_of_day: str, is_raining: int, group_size: int):
+def generate_interactive_trip_canvas(user_selected_hotspots: list, budget_limit: float, time_of_day: str, is_raining: int, group_size: int, passenger_type: str = "adult", gender: str = "male", has_bus_pass: bool = False):
     canvas_itinerary = []
-    modes = ['public_bus', 'shared_auto', 'online_cab']
     
     sumo_multiplier = fetch_sumo_traffic_delay_multiplier()
     
@@ -116,34 +110,61 @@ def generate_interactive_trip_canvas(user_selected_hotspots: list, budget_limit:
         current_sim_peak = 1 if time_of_day == "night" else 0
         agentic_intel = run_agentic_review_synthesizer(current_stop)
         
+        # 🔗 SYNC STEP: Dynamic Profile loading straight from pricing.py rules engine
+        profile_matrix = calculate_comprehensive_transit_profile(
+            source_name=current_stop,
+            dest_name=next_stop,
+            distance_km=distance,
+            is_peak_hour=current_sim_peak,
+            is_raining=is_raining,
+            passenger_type=passenger_type,
+            gender=gender,
+            has_bus_pass=has_bus_pass,
+            group_size=group_size
+        )
+        
         alternatives_pool = []
         path_names = []
+        notes_mapping = {}
         
-        for mode in modes:
-            cost = predict_transit_fare(distance, current_sim_peak, is_raining, mode, group_size)
+        # Expand mapping tracking parameters for all 6 core available modes
+        for mode, data in profile_matrix.items():
+            cost = data["fare"]
+            comfort = data["comfort"]
+            notes_mapping[mode.upper()] = data.get("notes", "")
             
-            if mode == 'public_bus':
-                time_taken = distance * 4.0; walking_dist = 0.8; safety = 4.5; availability = 5.0; comfort = 2.0; traffic_delay = 25.0
-            elif mode == 'shared_auto':
-                time_taken = distance * 2.5; walking_dist = 0.3; safety = 3.5; availability = 4.0; comfort = 3.0; traffic_delay = 15.0
-            else: 
-                time_taken = distance * 1.8; walking_dist = 0.05; safety = 4.9; availability = 2.5 if distance > 15.0 else 4.5; comfort = 5.0; traffic_delay = 18.0
+            # Static performance vector mapping for multidimensional criteria evaluation
+            if mode == 'namma_metro':
+                time_taken = distance * 2.0; walking_dist = 0.5; safety = 4.9; availability = 4.8; traffic_delay = 5.0
+            elif mode == 'ordinary_bus':
+                time_taken = distance * 4.0; walking_dist = 0.8; safety = 4.2; availability = 5.0; traffic_delay = 25.0
+            elif mode == 'ac_vajra_bus':
+                time_taken = distance * 3.5; walking_dist = 0.7; safety = 4.6; availability = 4.2; traffic_delay = 22.0
+            elif mode == 'vayu_vajra_kia':
+                time_taken = distance * 2.2; walking_dist = 0.3; safety = 4.9; availability = 4.0; traffic_delay = 15.0
+            elif mode == 'online_auto':
+                time_taken = distance * 2.5; walking_dist = 0.1; safety = 3.5; availability = 4.0; traffic_delay = 15.0
+            else: # online_cab
+                time_taken = distance * 1.8; walking_dist = 0.05; safety = 4.8; availability = 4.5; traffic_delay = 18.0
                 
+            # Env conditions parameter modifiers
             if time_of_day == "night":
-                traffic_delay -= 10.0 
-                if mode != 'online_cab':
-                    safety -= 1.5      
-                    availability -= 2.0
-            
+                traffic_delay = max(2.0, traffic_delay - 10.0)
+                if mode in ['ordinary_bus', 'online_auto']:
+                    safety -= 1.2
+                    availability -= 1.5
+                    
             traffic_delay = traffic_delay * sumo_multiplier * agentic_intel["traffic_modifier"]
             comfort = max(1.0, comfort - agentic_intel["comfort_penalty"])
-            
             weather_risk = 4.0 if is_raining == 1 else 1.0
+            
             alternatives_pool.append([cost, time_taken, traffic_delay, walking_dist, safety, weather_risk, availability, comfort])
-            path_names.append(mode.upper()) # Direct clean Mode mapping
+            path_names.append(mode.upper())
 
+        # Benefit filters index (True means Maximize, False means Minimize)
         benefit_criteria = [False, False, False, False, True, False, True, True]
         
+        # Weights tuning matrix
         if time_of_day == "night":
             weights = np.array([0.10, 0.10, 0.05, 0.05, 0.40, 0.10, 0.10, 0.10])
         elif is_raining == 1:
@@ -151,22 +172,29 @@ def generate_interactive_trip_canvas(user_selected_hotspots: list, budget_limit:
         else:
             weights = np.array([0.25, 0.20, 0.15, 0.10, 0.10, 0.05, 0.05, 0.10])
 
-        # Runs optimization matrix to return ALL ranked options instead of just slicing index 0
         all_ranked_alternatives = run_topsis_optimizer(np.array(alternatives_pool), weights, benefit_criteria, path_names)
         
-        # 🤖 GENERATING INTELLIGENT COMPARATIVE SUGGESTIONS FOR THE USER
+        # 🤖 GENERATING SMART COMPARATIVE SUGGESTIONS FOR THE UNIFIED WEB VIEW
         smart_suggestions_list = []
         for rank_idx, item in enumerate(all_ranked_alternatives):
             mode_name = item['route_name']
             fare_est = item['raw_metrics_snapshot'][0]
-            delay_est = item['raw_metrics_snapshot'][2]
             
-            if mode_name == "PUBLIC_BUS":
-                desc = f"Rank #{rank_idx+1}: Sabse economical option (₹{fare_est:.1f}). But walking overhead zyada hoga aur high crowd delays ({delay_est:.1f}) expected hain."
-            elif mode_name == "SHARED_AUTO":
-                desc = f"Rank #{rank_idx+1}: Balanced choice (₹{fare_est:.1f}). Commute fast hoga, local street dynamics ke liye flexible hai."
-            else: # ONLINE_CAB
-                desc = f"Rank #{rank_idx+1}: Maximum comfort aur zero walking. Weather protection best hai par pricing expensive (₹{fare_est:.1f}) hogi."
+            custom_note = notes_mapping.get(mode_name, "")
+            note_str = f" ({custom_note})" if custom_note else ""
+            
+            if mode_name == "NAMMA_METRO":
+                desc = f"Rank #{rank_idx+1}: Metro Grid System (₹{fare_est:.1f}). Speed high hogi, traffic delays zero honge.{note_str}"
+            elif mode_name == "ORDINARY_BUS":
+                desc = f"Rank #{rank_idx+1}: Non-AC Bus Option (₹{fare_est:.1f}). High crowd delay possible hai.{note_str}"
+            elif mode_name == "AC_VAJRA_BUS":
+                desc = f"Rank #{rank_idx+1}: AC Vajra Grid (₹{fare_est:.1f}). Premium seating with standard comfort.{note_str}"
+            elif mode_name == "VAYU_VAJRA_KIA":
+                desc = f"Rank #{rank_idx+1}: Premium Airport Shuttles (₹{fare_est:.1f}). Direct airport connectivity execution.{note_str}"
+            elif mode_name == "ONLINE_AUTO":
+                desc = f"Rank #{rank_idx+1}: Digital Ola/Uber Auto (₹{fare_est:.1f}). Micro-mobility scaling operations."
+            else:
+                desc = f"Rank #{rank_idx+1}: Private Cab Split (₹{fare_est:.1f}). Premium luxury safe weather shielding."
                 
             smart_suggestions_list.append(desc)
 
