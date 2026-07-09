@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Voyager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body class="bg-slate-950 text-white overflow-hidden">
+
+    <div id="map" class="h-screen w-full absolute z-0"></div>
+
+    <div id="location-toast" class="hidden absolute top-5 left-1/2 -translate-x-1/2 z-[2000] bg-green-600 px-6 py-3 rounded-full shadow-2xl border border-green-400 text-white font-bold animate-bounce">
+        📍 Location pinned! Now scanning nearby...
+    </div>
+
+    <div id="side-panel" class="hidden absolute top-0 right-0 w-96 h-screen bg-slate-900/95 p-6 overflow-y-auto z-[1000] border-l border-slate-700 shadow-2xl">
+        <h2 class="text-2xl font-black text-blue-400 mb-6">Discovery Results</h2>
+        <div id="results-list" class="space-y-4"></div>
+    </div>
+
+    <div class="absolute bottom-10 left-10 z-[1000] bg-slate-900 p-6 rounded-2xl border border-slate-700 w-80 shadow-xl">
+        <div class="mb-6 border-b border-slate-700 pb-4">
+            <h3 class="text-xs font-bold text-blue-400 mb-2 uppercase tracking-widest">Search Nearby</h3>
+            <input type="text" id="nearby-search" placeholder="atm, bank, temple..." class="w-full bg-slate-950 p-2 rounded-lg border border-slate-600 mb-2 text-white">
+            <input type="number" id="radius-input" value="3" class="w-full bg-slate-950 p-2 rounded-lg border border-slate-600 mb-2 text-white">
+            <button onclick="triggerNearbySearch()" class="w-full bg-blue-600 p-2 rounded-lg font-bold hover:bg-blue-500 transition-colors">SEARCH NEARBY</button>
+        </div>
+
+        <div>
+            <h3 class="text-xs font-bold text-green-400 mb-2 uppercase tracking-widest">Search Specific</h3>
+            <input type="text" id="specific-search" placeholder="Bangalore Palace, Delhi..." class="w-full bg-slate-950 p-2 rounded-lg border border-slate-600 mb-2 text-white">
+            <button onclick="triggerSpecificSearch()" class="w-full bg-green-600 p-2 rounded-lg font-bold hover:bg-green-500 transition-colors">SEARCH SPECIFIC</button>
+        </div>
+    </div>
+
+    <script>
+        const map = L.map('map').setView([12.9716, 77.5946], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        const blueIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png', iconSize: [25, 41] });
+        const greenIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png', iconSize: [25, 41] });
+        const redIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', iconSize: [25, 41] });
+
+        let userMarker, resultMarkers = [], activeMarker = null, activeCenter = null;
+
+        function renderResults(data) {
+            const list = document.getElementById('results-list');
+            list.innerHTML = '';
+            document.getElementById('side-panel').classList.remove('hidden');
+            resultMarkers.forEach(m => map.removeLayer(m));
+            
+            data.forEach(spot => {
+                const icon = spot.reliability_score > 7 ? greenIcon : redIcon;
+                const marker = L.marker([spot.lat, spot.lon], {icon: icon}).addTo(map).bindPopup(`<b>${spot.name}</b>`);
+                resultMarkers.push(marker);
+                
+                list.innerHTML += `
+                <div class="bg-slate-800 p-4 rounded-xl border ${spot.reliability_score ? (spot.reliability_score > 7 ? 'border-green-600' : 'border-red-600') : 'border-slate-600'} cursor-pointer hover:scale-105 transition-transform" 
+                     onmouseover="map.setView([${spot.lat}, ${spot.lon}], 17)">
+                    <h3 class="font-bold">${spot.name}</h3>
+                    <p class="text-sm italic text-slate-300">${spot.summary || 'Analyzing sentiment...'}</p>
+                </div>`;
+            });
+        }
+
+        navigator.geolocation.watchPosition((pos) => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            if(!userMarker) userMarker = L.marker([lat, lng], {icon: blueIcon}).addTo(map).bindPopup("You are here");
+            else userMarker.setLatLng([lat, lng]);
+        });
+
+        async function triggerNearbySearch() {
+            const query = document.getElementById('nearby-search').value;
+            const radius = document.getElementById('radius-input').value;
+            if (activeCenter) {
+                fetchResults(activeCenter.lat, activeCenter.lon, query, radius);
+            } else {
+                navigator.geolocation.getCurrentPosition(pos => fetchResults(pos.coords.latitude, pos.coords.longitude, query, radius));
+            }
+        }
+
+        async function fetchResults(lat, lon, query, radius) {
+            const list = document.getElementById('results-list');
+            list.innerHTML = '<p class="text-blue-300 animate-pulse">Scanning...</p>';
+            const res = await fetch('http://localhost:8000/api/search', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ lat, lon, query, radius })
+            });
+            const result = await res.json();
+            renderResults(result.data);
+        }
+
+        async function triggerSpecificSearch() {
+            const query = document.getElementById('specific-search').value;
+            const res = await fetch('http://localhost:8000/api/search_specific', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ query: query })
+            });
+            const result = await res.json();
+            if(result.data.length > 0) {
+                const spot = result.data[0];
+                activeCenter = { lat: spot.lat, lon: spot.lon };
+                
+                // Update Blue Pin
+                if(activeMarker) map.removeLayer(activeMarker);
+                activeMarker = L.marker([spot.lat, spot.lon], {icon: blueIcon}).addTo(map).bindPopup("Pinned Location");
+                
+                map.setView([spot.lat, spot.lon], 16);
+                const toast = document.getElementById('location-toast');
+                toast.classList.remove('hidden');
+                setTimeout(() => toast.classList.add('hidden'), 3000);
+                renderResults(result.data);
+            }
+        }
+    </script>
+</body>
+</html>

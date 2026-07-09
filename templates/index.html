@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
     <meta charset="UTF-8">
-    <title>Voyager Intelligence Gateway</title>
+    <title>Voyager</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-950 text-white min-h-screen">
@@ -11,8 +11,8 @@
         <iframe id="map-frame" src="/map" class="w-full h-full border-none"></iframe>
         <div class="absolute bottom-8 left-0 right-0 flex justify-center gap-4 px-4">
             <button onclick="showPanel('panel-self')" class="bg-blue-600 px-8 py-4 rounded-2xl font-black shadow-2xl hover:scale-105 transition">TRAVEL</button>
-            <button onclick="showPanel('panel-transit')" class="bg-emerald-600 px-8 py-4 rounded-2xl font-black shadow-2xl hover:scale-105 transition">A-TO-B TRANSIT</button>
-            <button onclick="showPanel('panel-trip')" class="bg-purple-600 px-8 py-4 rounded-2xl font-black shadow-2xl hover:scale-105 transition">TRIP CANVAS</button>
+            <button onclick="showPanel('panel-transit')" class="bg-emerald-600 px-8 py-4 rounded-2xl font-black shadow-2xl hover:scale-105 transition">A-TO-B</button>
+            <button onclick="showPanel('panel-trip')" class="bg-purple-600 px-8 py-4 rounded-2xl font-black shadow-2xl hover:scale-105 transition">TRIP</button>
         </div>
     </div>
 
@@ -22,13 +22,13 @@
             <h2 class="text-3xl font-black text-blue-400 uppercase tracking-widest">Travel Intelligence</h2>
             
             <div class="bg-slate-900 p-8 rounded-3xl border border-slate-700">
-                <h3 class="text-lg font-bold mb-4">📍 Proximity Search</h3>
+                <h3 class="text-lg font-bold mb-4">📍Search</h3>
                 <input type="text" id="nearby-search" placeholder="Search nearby utilities..." class="w-full bg-slate-950 p-4 rounded-xl border border-slate-700 text-white mb-4">
                 <button onclick="triggerNearbySearch()" class="w-full bg-blue-800 p-4 rounded-xl font-bold hover:bg-blue-700 transition">SCAN NEARBY</button>
             </div>
 
             <div class="bg-slate-900 p-8 rounded-3xl border border-slate-700">
-                <h3 class="text-lg font-bold mb-4">🚀 Personal Commute (Car/Walk)</h3>
+                <h3 class="text-lg font-bold mb-4">🚀 Personal Vehicle / Walk</h3>
                 <div class="grid grid-cols-2 gap-4 mb-4">
                     <input id="p-src" type="text" placeholder="Source" class="bg-slate-950 p-4 rounded-xl border border-slate-700 text-white">
                     <input id="p-dst" type="text" placeholder="Destination" class="bg-slate-950 p-4 rounded-xl border border-slate-700 text-white">
@@ -42,7 +42,7 @@
         </section>
 
         <section id="panel-transit" class="hidden space-y-6">
-            <h2 class="text-3xl font-black text-emerald-400 uppercase tracking-widest">A-to-B Transit</h2>
+            <h2 class="text-3xl font-black text-emerald-400 uppercase tracking-widest">A-to-B</h2>
             <div class="bg-slate-900 p-8 rounded-3xl border border-slate-700 space-y-4">
                 <div class="grid grid-cols-2 gap-4">
                     <input id="src" type="text" placeholder="Source" class="bg-slate-950 p-4 rounded-xl border border-slate-700 text-white">
@@ -50,21 +50,21 @@
                     <input id="group" type="number" placeholder="Group Size" class="bg-slate-950 p-4 rounded-xl border border-slate-700 text-white">
                     <input id="budget" type="number" placeholder="Budget (INR)" class="bg-slate-950 p-4 rounded-xl border border-slate-700 text-white">
                 </div>
-                <button onclick="triggerTransit()" class="w-full bg-emerald-600 py-4 rounded-xl font-black hover:bg-emerald-500 transition">CALCULATE OPTIMAL ROUTE</button>
+                <button onclick="triggerTransit()" class="w-full bg-emerald-600 py-4 rounded-xl font-black hover:bg-emerald-500 transition">CALCULATE ROUTE</button>
                 <div id="transit-results" class="mt-6"></div>
             </div>
         </section>
 
         <section id="panel-trip" class="hidden space-y-6">
-            <h2 class="text-3xl font-black text-purple-400 uppercase tracking-widest">Trip Itinerary Canvas</h2>
+            <h2 class="text-3xl font-black text-purple-400 uppercase tracking-widest">Trip Itinerary</h2>
             <div class="bg-slate-900 p-8 rounded-3xl border border-slate-700">
                 <textarea id="trip-nodes" class="w-full bg-slate-950 p-4 rounded-xl mb-4 text-white" rows="3" placeholder="Enter hotspots (comma separated)..."></textarea>
-                <button onclick="triggerTrip()" class="w-full bg-purple-600 py-4 rounded-xl font-black hover:bg-purple-500 transition">GENERATE CANVAS</button>
+                <button onclick="triggerTrip()" class="w-full bg-purple-600 py-4 rounded-xl font-black hover:bg-purple-500 transition">GENERATE TRIP</button>
                 <div id="trip-results" class="mt-6"></div>
             </div>
         </section>
         <section id="panel-discovery" class="hidden space-y-6">
-            <h2 class="text-3xl font-black text-yellow-400 uppercase tracking-widest">Discovery Canvas</h2>
+            <h2 class="text-3xl font-black text-yellow-400 uppercase tracking-widest">Discover</h2>
             <div id="suggestions-list" class="grid gap-4">
                 </div>
         </section>
